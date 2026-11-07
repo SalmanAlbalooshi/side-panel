@@ -1,0 +1,34 @@
+{
+  "name": "side-panel",
+  "version": "1.7.0",
+  "description": "A side screen for your PC: AI status, keys, music, and what needs you.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "windowed": "electron . --windowed",
+    "test": "node test/run.js",
+    "icon": "node build/make-icon.js",
+    "helper": "cd helper && dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=none -o ../bin/helper",
+    "package": "node build/package.js",
+    "fonts": "node build/get-fonts.js",
+    "day": "node test/day.js",
+    "ai": "node test/ai.js",
+    "keys": "node test/keys.js",
+    "browser": "node test/browser-link.js",
+    "release": "npm run package && node build/release.js",
+    "install-local": "node build/package.js && node build/install-local.js"
+  },
+  "keywords": [],
+  "author": "Side Panel contributors",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron/packager": "^18.3.6",
+    "electron": "^33.2.1",
+    "playwright-core": "^1.48.2"
+  },
+  "productName": "Side Panel",
+  "updateRepo": "SalmanAlbalooshi/side-panel",
+  "dependencies": {
+    "@ricky0123/vad-web": "0.0.31"
+  }
+}

@@ -1,0 +1,18 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Side Panel link</title>
+<style>
+  body { font: 14px/1.4 "Segoe UI", system-ui, sans-serif; width: 260px; margin: 0; padding: 14px; background: #F4F6F8; color: #17202B; }
+  h1 { font-size: 15px; margin: 0 0 6px; }
+  p { margin: 0 0 10px; color: #4B5866; }
+  button { font: inherit; font-weight: 600; width: 100%; padding: 10px; border-radius: 8px; border: 0; background: #1F6FEB; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  .ok { color: #1A7F37; font-weight: 600; }
+  .bad { color: #B42318; }
+</style></head>
+<body>
+  <h1>Side Panel link</h1>
+  <p id="state">Checking…</p>
+  <button id="go" hidden>Connect to Side Panel</button>
+  <p style="margin-top:10px;font-size:12px">Only the tab title and whether a reply is being written go to the panel. Nothing leaves this PC.</p>
+  <script src="popup.js"></script>
+</body></html>
