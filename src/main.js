@@ -717,7 +717,7 @@ const ACT_RULES = "To do things on the PC: panel_command takes plain words (open
 // Simple visuals Blink may add to an answer (drawn by the panel from data, never code)
 const CARD_HELP = "When 3 or more numbers, a change over time, steps to follow, a schedule, or progress would be clearer as a picture, add exactly one fenced code block with the language blink-card holding one JSON object, after your text. Types: {\"type\":\"stat\",\"title\":\"...\",\"value\":62,\"unit\":\"%\",\"note\":\"...\"}; {\"type\":\"bar\",\"title\":\"...\",\"unit\":\"h\",\"items\":[[\"label\",3.5],...]} (2 to 7 items); {\"type\":\"line\",\"title\":\"...\",\"unit\":\"°\",\"points\":[[\"9am\",21],...]} (2 to 24 points); {\"type\":\"ring\",\"title\":\"...\",\"value\":18,\"max\":25,\"unit\":\"min\"}; {\"type\":\"steps\",\"title\":\"...\",\"steps\":[\"...\",...]} (up to 6); {\"type\":\"timeline\",\"title\":\"...\",\"items\":[[\"9:00\",\"...\"],...]} (up to 8). Numbers must be real numbers from your answer. No card for simple answers, chat, or lists of names.";
 // How Blink relates to the person's Claude Code: one assistant, Blink is just its friendly face
-const BLINK_SETUP = "Follow-ups like 'play it', 'play the music', 'open that', 'send it' refer to what you two were just talking about: act on that exact thing (for a song, use panel_command 'play <exact title> by <artist>'), never on the literal words. You are their Claude Code, not a separate assistant: the same memory and preferences, with Blink's friendly voice. Never say you're a separate entity. Handle quick questions and PC actions yourself, fast. For real work (documents, code, research, anything needing their files, agents, skills or other tools, or more than a minute), call claude_task with a clear brief: it runs in their full Claude Code setup with all their agents, skills and tools, shows in Chats and opens in the Claude app when done. When they tell you something lasting (remember, I prefer, from now on, my X is, a correction), call remember.";
+const BLINK_SETUP = "Follow-ups like 'play it', 'play the music', 'open that', 'send it' refer to what you two were just talking about: act on that exact thing (for a song, use panel_command 'play <exact title> by <artist>'), never on the literal words. If that song is already playing, just say so; to resume music use panel_command 'play', to pause use 'pause'; never send 'play or pause'. You are their Claude Code, not a separate assistant: the same memory and preferences, with Blink's friendly voice. Never say you're a separate entity. Handle quick questions and PC actions yourself, fast. For real work (documents, code, research, anything needing their files, agents, skills or other tools, or more than a minute), call claude_task with a clear brief: it runs in their full Claude Code setup with all their agents, skills and tools, shows in Chats and opens in the Claude app when done. When they tell you something lasting (remember, I prefer, from now on, my X is, a correction), call remember.";
 // How Blink answers: right first, then short. Shared by typed questions and calls.
 const ANSWER_RULES = "Get it right first. For anything factual that may have changed or that you aren't sure of (games, shows, sports, news, prices, releases, schedules, how-tos), use WebSearch before answering and give the actual answer from reliable sources (official sites, Wikipedia, well-known guides and wikis). Never stop at 'I couldn't find it' after one try: search again with different words. If sources disagree, give the best-supported answer and say so in a few words. Lead with the answer, no preamble. Keep it as short as the question allows.";
 const modelPick = () => (cfg.aiModel === "haiku" ? "haiku" : cfg.aiModel === "opus" ? "opus" : "sonnet"); // Fast, Best, or Balanced (the default)
@@ -752,9 +752,16 @@ let callReadOutside = false;
 const OUTSIDE_TOOLS = /search|fetch|app_look|browser|read/i;
 function readOutside(from) {
   if (from && from.call) return callReadOutside;
-  const last = from && from.messages ? [...from.messages].reverse().find((m) => m.role === "ai") : null;
-  return !!(last && (last.parts || []).some((p) => p.type === "step" && /searched the web|fetched|looked at|read |panel: window:/i.test(p.label || "")));
+  // any answer in this chat (not just the last) that read a web page, a file or an app window
+  return !!(from && from.messages && from.messages.some((m) => m.role === "ai" && (m.parts || []).some((p) => p.type === "step" && /searched the web|fetched|looked at|read |panel: window:/i.test(p.label || ""))));
 }
+// what you yourself last said in this call or chat
+let callLastUser = "";
+function lastUserWords(from) { if (from && from.call) return callLastUser; const m = from && from.messages ? [...from.messages].reverse().find((x) => x.role === "you") : null; return (m && m.text) || ""; }
+const ASKED_TO_REMEMBER = /\b(remember|don'?t forget|from now on|keep in mind|note that|i prefer|i'd prefer|i like|i love|i hate|i don'?t like|always|never|my [a-z]+(?: [a-z]+)? (?:is|are)|call me|i am|i'm a|i work)\b|تذكر|احفظ/i;
+const ASKED_FOR_WORK = /\b(write|draft|create|make|build|plan|research|prepare|analy[sz]e|summari[sz]e|fix|update|code|organi[sz]e|compile|design|set up|generate|work on|look into|compare|review|translate|find out|dig into|put together)\b|اكتب|جهز|ابحث|حلل/i;
+// skip the card only when you asked for exactly this and nothing from outside got into the conversation
+const needsConfirm = (from, re) => readOutside(from) || !re.test(lastUserWords(from));
 const appAskList = () => [...appAsks.values()].map((x) => x.what ? ({ id: x.id, sessionId: null, project: "Blink", what: x.what, detail: x.detail, until: x.until, source: "app", app: "", voice: x.voice }) : ({ id: x.id, sessionId: null, project: "Blink", what: "Let Blink use " + x.label + "?", detail: "Blink can press buttons and type in " + x.label + " when you ask. You can change this in Settings.", until: x.until, source: "app", app: x.label }));
 // Blink's instructions for typed chats (and for typing on after a call)
 function blinkSystem() { return "You are Blink, the friendly face of the person's own Claude Code, on their Side Panel. " + BLINK_SETUP + (cfg.userName ? " Their name is " + cfg.userName + "; use it now and then, not every time." : "") + " Sound like a warm, capable person: natural sentences, contractions. " + ANSWER_RULES + " Format for a small screen when it helps: numbered lists for sequences, bullets for options, **bold** for the key fact, a short table to compare. A one-line answer stays one line. " + CARD_HELP + " Only act on the PC when they ask you to do something; for questions, just answer. " + ACT_RULES + " Reply in the language the person used. If they wrote Arabic, reply in simple Gulf Arabic (Bahraini is fine) and pass panel_command plain English.\n" + pcContext(); }
@@ -848,7 +855,7 @@ function connEnv() {
 // real work goes to their full setup (agents, skills, their tools), in the background, kept in Chats
 async function handTask(a, from) {
   const task = str(a && a.task, 6000); if (!task) return { error: "What should I hand over?" };
-  if (readOutside(from) && !(await askConfirm("Hand this to your Claude setup?", task.slice(0, 300), "Shall I hand that to your Claude setup? Say yes, or tap Allow."))) return { error: "Okay, I didn't hand it over." };
+  if (needsConfirm(from, ASKED_FOR_WORK) && !(await askConfirm("Hand this to your Claude setup?", task.slice(0, 300), "Shall I hand that to your Claude setup? Say yes, or tap Allow."))) return { error: "Okay, I didn't hand it over." };
   if (!disc.ai.claudeCode) return { error: "Handing work over needs Claude Code on this PC" };
   const title = str((a && a.title) || task, 60);
   if (TEST && process.env.SP_REAL_AI) { sent("handTask", title + " :: " + task.slice(0, 200)); return { say: "Handed to your Claude setup as \"" + title + "\". It's in Chats now, and I'll say when it's done." }; }
@@ -859,7 +866,7 @@ async function handTask(a, from) {
 function claudeMemoryDir() { const h = os.homedir(); return path.join(h, ".claude", "projects", h.replace(/[^a-zA-Z0-9]/g, "-"), "memory"); }
 async function remember(a, from) {
   const fact = str(a && a.fact, 600).trim(); if (fact.length < 3) return { error: "Nothing to remember" };
-  if (readOutside(from) && !(await askConfirm("Save this to your memory?", fact.slice(0, 300), "Shall I remember that? Say yes, or tap Allow."))) return { error: "Okay, I didn't save it." };
+  if (needsConfirm(from, ASKED_TO_REMEMBER) && !(await askConfirm("Save this to your memory?", fact.slice(0, 300), "Shall I remember that? Say yes, or tap Allow."))) return { error: "Okay, I didn't save it." };
   const kind = ["user", "feedback", "project", "reference"].includes(a && a.kind) ? a.kind : "user";
   if (TEST && !process.env.SP_TEST_MEMORY) { sent("remember", kind + ": " + fact); return { say: "Got it, I'll remember that." }; }
   const dir = TEST ? process.env.SP_TEST_MEMORY : claudeMemoryDir();
@@ -1117,6 +1124,7 @@ const actions = {
   callStart: async () => {
     const port = TEST ? null : await voices.startEars().catch(() => null);
     // tests with SP_REAL_AI=1 use the real Claude Code (every PC action is still only recorded)
+    if ((!TEST || process.env.SP_REAL_AI) && disc.ai.claudeCode && !callBrain) callReadOutside = false; // a fresh conversation starts clean
     if ((!TEST || process.env.SP_REAL_AI) && disc.ai.claudeCode && !callBrain) callBrain = new CallBrain({
       claudePath: () => (disc.ai && disc.ai.claudeCode ? disc.ai.claudeCode.path : null),
       mcpConfig: () => runner.callMcpConfig(),
@@ -1139,7 +1147,7 @@ const actions = {
     if (p && !p.ai && !p.aiAction && !ctxual) { const r = await runCommand(text, "bar"); return { say: r.say || r.error || "Done.", ui: r.ui || null }; }
     const h = help.answer(text); if (h) return { say: h.say };
     if (TEST && disc.ai.claudeCode && !process.env.SP_REAL_AI) { const ans = "Echo: " + text; setTimeout(() => { callSend({ type: "delta", text: ans }); callSend({ type: "done", text: ans }); }, 150); return { ai: true }; }
-    lastTalkAt = Date.now(); callReadOutside = false;
+    lastTalkAt = Date.now(); callLastUser = text;
     if (!callBrain || !callBrain.ask(text)) return { say: "For questions like that I need Claude Code on this PC. I can still do things like music, volume and your meetings." };
     return { ai: true };
   },
@@ -1272,7 +1280,7 @@ const actions = {
     await new Promise((r) => setTimeout(r, 200)); await helper.call("keys.send", { keys: [0x7A] }); return { ok: true }; // F11, the app's own full screen
   },
   // tests only: the AI's two Blink tools, and the arguments a task would start with
-  testTool: async (a) => { if (!TEST) return { error: "test only" }; if (a.call) callReadOutside = !!a.outside; const from = a.call ? { call: true } : a.outside ? { messages: [{ role: "ai", parts: [{ type: "step", label: "Searched the web for x" }] }] } : {}; return a.name === "claude_task" ? handTask(a.args || {}, from) : a.name === "remember" ? remember(a.args || {}, from) : appTool(a.name, a.args || {}); },
+  testTool: async (a) => { if (!TEST) return { error: "test only" }; const said = a.said !== undefined ? a.said : (a.name === "remember" ? "remember this" : "write this up"); if (a.call) { callReadOutside = !!a.outside; callLastUser = said; } const from = a.call ? { call: true } : { messages: [{ role: "you", text: said }].concat(a.outside ? [{ role: "ai", parts: [{ type: "step", label: "Searched the web for x" }] }] : []) }; return a.name === "claude_task" ? handTask(a.args || {}, from) : a.name === "remember" ? remember(a.args || {}, from) : appTool(a.name, a.args || {}); },
   testArgs: (id) => (TEST && runner.threads.get(String(id)) ? runner.args(runner.threads.get(String(id))) : null),
   // ---- notes: things to finish today, on screen until ticked off ----
   noteAdd: ({ text, due }) => { const t = str(text, 300).trim(); if (!t) return { error: "What's the note?" }; cfg.notes = (cfg.notes || []).concat({ id: "n" + Date.now().toString(36), text: t, due: str(due, 40), done: false, at: Date.now(), doneAt: 0 }).slice(-60); saveCfg(); push(); return { ok: true }; },

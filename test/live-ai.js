@@ -60,7 +60,8 @@ const claude = execSync("where claude", { encoding: "utf8" }).split(/\r?\n/).fin
 
   t = await turn("Play the music");
   const music2 = t.did.join(" | ");
-  ok("context: 'play the music' right after still means that song (not a random first result)", /music |pressPlay|open spotify|media play/.test(music2) && !/search:the%20music|music \w+ the music/i.test(music2), music2);
+  const songWord = (title.toLowerCase().match(/[a-z]{4,}/) || [""])[0];
+  ok("context: 'play the music' right after still means that song (not a random first result, not 'or pause')", (/media play/.test(music2) || /already playing|is playing|playing now/i.test(t.reply) || (songWord && music2.toLowerCase().includes(songWord))) && !/search:(the%20music|or%20pause|pause)|music \w+ (the music|or pause)/i.test(music2), music2);
 
   t = await turn("What's 15 percent of 240?");
   ok("quick maths: right answer", /\b36\b/.test(t.reply), t.reply);

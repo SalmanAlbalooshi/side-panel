@@ -76,6 +76,10 @@ function parse(text, ctx) {
   }
   // music
   if (has(/^(pause|stop)( the)? (music|song|playing)$|^pause$/)) return { act: "media", arg: { action: "pause" }, say: "Paused." };
+  // "play some music" with no AI to pick something: just carry on with the music app
+  if (!ctx.hasAI && has(/^(play|put on) (some |any )?(music|something|anything|songs?)$/)) return { act: "media", arg: { action: "play" }, say: "Playing." };
+  // the play/pause button, however it's said ("play or pause", "play/pause", "toggle the music")
+  if (has(/^(play ?(or|\/|and) ?pause|pause ?(or|\/) ?play|toggle (the )?(music|playback|play)|play pause)$/)) return { act: "media", arg: { action: "toggle" }, say: "Done." };
   // "play the music" / "play the song" may mean the one you were just talking about: contextual
   if (has(/^(play|resume)( the)? (music|song)?$|^resume$|^play$/)) return { act: "media", arg: { action: "play" }, say: "Playing.", contextual: /(the )?(music|song)$/.test(q) };
   if (has(/^(next|skip)( song| track)?$/)) return { act: "media", arg: { action: "next" }, say: "Next song." };
@@ -164,7 +168,8 @@ function parse(text, ctx) {
     const gq = play[3].replace(/^(the )?game\s+|\s+game$/, "");
     const g = (play[1] === "start" || /\bgame\b/.test(play[3]) ? best(gq, ctx.games, (x) => x.name) : (ctx.games || []).find((x) => { const s = score(gq, x.name); return s >= 80 || (s >= 70 && norm(gq).replace(/ /g, "").length >= 8); }));
     if (g) return { act: "openUrl", arg: g.url, say: "Starting " + g.name + "." };
-    if (play[1] !== "start" && !/\b(game|movie|film|episode|with me|for me a)\b/.test(play[3])) {
+    // control words are never a song name ("play or pause", "play something")
+    if (play[1] !== "start" && !/\b(game|movie|film|episode|with me|for me a)\b/.test(play[3]) && !/^(or |and )?(pause|resume|stop|play|next|previous|back|music|some music|something|anything)$/.test(play[3])) {
       const on = play[3].match(/^(.+?)\s+(?:on|in|from)\s+(spotify|youtube music|yt music|apple music|youtube)$/);
       const SRC = { spotify: "spotify", "youtube music": "ytmusic", "yt music": "ytmusic", "apple music": "apple", youtube: "youtube" };
       return { act: "musicPlay", arg: { q: on ? on[1] : play[3], src: on ? SRC[on[2]] : "" } };
